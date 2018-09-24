@@ -6,7 +6,8 @@ import cats.effect
 import cats.effect.{Clock, IO}
 import org.scalatest._
 import cats.implicits._
-import scala.concurrent.duration.{FiniteDuration, TimeUnit}
+import scala.concurrent.duration._
+import com.wix.ocicat.ThrottleConfig._
 
 class ThrottlerTest extends FlatSpec with Matchers {
 
@@ -17,7 +18,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     val fakeTimer = new FakeTimer()
     implicit val cs = fakeTimer.timer
-    val throttler = Throttler[IO, Int](window, limit).unsafeRunSync()
+    val throttler = Throttler[IO, Int](limit every window.millis).unsafeRunSync()
   }
 
   "Throttler" should "not throttle" in new ctx {
@@ -78,7 +79,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
 class FakeTimer(var time: Long = System.currentTimeMillis()) {
 
   def timer: effect.Timer[IO] = new effect.Timer[IO] {
-    override def clock = new Clock[IO] {
+    override def clock: Clock[IO] = new Clock[IO] {
       override def realTime(unit: TimeUnit) = IO {
         unit.convert(time, TimeUnit.MILLISECONDS)
       }
@@ -89,7 +90,7 @@ class FakeTimer(var time: Long = System.currentTimeMillis()) {
     override def sleep(duration: FiniteDuration) = ???
   }
 
-  def add(delta: Int) = {
+  def add(delta: Int): Unit = {
     time = time + delta.toLong
   }
 }

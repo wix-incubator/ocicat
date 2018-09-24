@@ -19,18 +19,19 @@ object Throttler {
   case object NonThrottled extends ThrottleStatus
 
 
-  def apply[F[_], A](window: Int, limit: Int)(implicit T: Timer[F], S: Sync[F]): F[Throttler[F, A]] = {
+  def apply[F[_], A](config: ThrottleConfig)(implicit T: Timer[F], S: Sync[F]): F[Throttler[F, A]] = {
+    val windowMillis = config.window.toMillis
 
     for {
       now <- T.clock.realTime(TimeUnit.MILLISECONDS)
-      currentTick = now / window
+      currentTick = now / windowMillis
       state <- Ref.of((currentTick, Map.empty[A, Int]))
     } yield {
       new Throttler[F, A] {
 
         override def throttle(key: A) = for {
           now <- T.clock.realTime(TimeUnit.MILLISECONDS)
-          currentTick = now / window
+          currentTick = now / windowMillis
           throttleStatus <- state.modify { case (previousTick, counts) =>
             // todo validate limit
             if (currentTick > previousTick) {
@@ -38,7 +39,7 @@ object Throttler {
             } else {
               counts.get(key) match {
                 case Some(count) =>
-                  if (count + 1 > limit) {
+                  if (count + 1 > config.limit) {
                     ((previousTick, counts + (key -> (count + 1))), Throttled)
                   } else {
                     ((previousTick, counts + (key -> (count + 1))), NonThrottled)
