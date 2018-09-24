@@ -24,26 +24,27 @@ object Throttler {
 
     for {
       now <- T.clock.realTime(TimeUnit.MILLISECONDS)
-      state <- Ref.of((now, Map.empty[A, Int]))
+      tick = now / window
+      state <- Ref.of((tick, Map.empty[A, Int]))
     } yield {
       new Throttler[F, A] {
 
         override def throttle(key: A) = for {
           now <- T.clock.realTime(TimeUnit.MILLISECONDS)
+          currentTick = now / window
           throttleStatus <- state.modify {
-            case (before, counts) =>
-              // todo normalize window
+            case (previousTick, counts) =>
               // todo validate limit
-              if ((now - before) > window) {
+              if (currentTick > previousTick) {
                 ((now, Map(key -> 1)), NonThrottled)
               } else {
                 counts.get(key) match {
                   case Some(count) => if (count + 1 > limit) {
-                    ((before, counts + (key -> (count + 1))), Throttled)
+                    ((previousTick, counts + (key -> (count + 1))), Throttled)
                   } else {
-                    ((before, counts + (key -> (count + 1))), NonThrottled)
+                    ((previousTick, counts + (key -> (count + 1))), NonThrottled)
                   }
-                  case None => ((before, counts + (key -> 1)), NonThrottled)
+                  case None => ((previousTick, counts + (key -> 1)), NonThrottled)
                 }
               }
           }
