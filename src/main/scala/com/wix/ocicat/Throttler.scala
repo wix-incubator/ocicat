@@ -24,8 +24,8 @@ object Throttler {
 
     for {
       now <- T.clock.realTime(TimeUnit.MILLISECONDS)
-      tick = now / window
-      state <- Ref.of((tick, Map.empty[A, Int]))
+      currentTick = now / window
+      state <- Ref.of((currentTick, Map.empty[A, Int]))
     } yield {
       new Throttler[F, A] {
 

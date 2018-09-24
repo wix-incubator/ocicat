@@ -10,28 +10,39 @@ import scala.concurrent.duration.{FiniteDuration, TimeUnit}
 
 class ThrottlerTest extends FlatSpec with Matchers {
 
-  "Throttler" should "throttle" in {
+  trait ctx {
+    def window: Int
+
+    def limit: Int
+
     val fakeTimer = new FakeTimer()
     implicit val cs = fakeTimer.timer
-    val throttler = Throttler[IO, Int](1000, 3).unsafeRunSync()
+    val throttler = Throttler[IO, Int](window, limit).unsafeRunSync()
+  }
+
+  "Throttler" should "not throttle" in new ctx {
+    override def window = 1000
+
+    override def limit = 3
 
     throttler.throttle(1).unsafeRunSync()
     throttler.throttle(1).unsafeRunSync()
     throttler.throttle(1).unsafeRunSync()
 
-    fakeTimer.time = fakeTimer.time + 2000
-    throttler.throttle(1).unsafeRunSync()
-    throttler.throttle(1).unsafeRunSync()
-    throttler.throttle(1).unsafeRunSync()
+    fakeTimer.add(window)
 
+    throttler.throttle(1).unsafeRunSync()
+    throttler.throttle(1).unsafeRunSync()
+    throttler.throttle(1).unsafeRunSync()
 
   }
 
-  it should "sad" in {
-    val fakeTimer = new FakeTimer()
-    implicit val cs = fakeTimer.timer
+  it should "not throttle in the next tick" in new ctx {
+    override def window = 1000
+
+    override def limit = 3
+
     fakeTimer.time = (fakeTimer.time / 1000) * 1000 + 999
-    val throttler = Throttler[IO, Int](1000, 3).unsafeRunSync()
 
     throttler.throttle(1).unsafeRunSync()
     throttler.throttle(1).unsafeRunSync()
@@ -39,6 +50,19 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     fakeTimer.time = fakeTimer.time + 500
     throttler.throttle(1).unsafeRunSync()
+
+  }
+  it should "throttle in case limit of calls is exceeded" in new ctx {
+    override def window = 1000
+
+    override def limit = 3
+
+    throttler.throttle(1).unsafeRunSync()
+    throttler.throttle(1).unsafeRunSync()
+    throttler.throttle(1).unsafeRunSync()
+    assertThrows[RuntimeException] {
+      throttler.throttle(1).unsafeRunSync()
+    }
 
   }
 }
@@ -55,5 +79,9 @@ class FakeTimer(var time: Long = System.currentTimeMillis()) {
     }
 
     override def sleep(duration: FiniteDuration) = ???
+  }
+
+  def add(delta: Int) = {
+    time = time + delta.toLong
   }
 }
