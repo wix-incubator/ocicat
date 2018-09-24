@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 import cats.effect
 import cats.effect.{Clock, IO}
 import org.scalatest._
-
+import cats.implicits._
 import scala.concurrent.duration.{FiniteDuration, TimeUnit}
 
 class ThrottlerTest extends FlatSpec with Matchers {
@@ -25,15 +25,11 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     override def limit = 3
 
-    throttler.throttle(1).unsafeRunSync()
-    throttler.throttle(1).unsafeRunSync()
-    throttler.throttle(1).unsafeRunSync()
+    throttler.throttle(1).replicateA(limit).unsafeRunSync()
 
     fakeTimer.add(window)
 
-    throttler.throttle(1).unsafeRunSync()
-    throttler.throttle(1).unsafeRunSync()
-    throttler.throttle(1).unsafeRunSync()
+    throttler.throttle(1).replicateA(limit).unsafeRunSync()
 
   }
 
@@ -44,9 +40,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     fakeTimer.time = (fakeTimer.time / 1000) * 1000 + 999
 
-    throttler.throttle(1).unsafeRunSync()
-    throttler.throttle(1).unsafeRunSync()
-    throttler.throttle(1).unsafeRunSync()
+    throttler.throttle(1).replicateA(limit).unsafeRunSync()
 
     fakeTimer.time = fakeTimer.time + 500
     throttler.throttle(1).unsafeRunSync()
@@ -57,12 +51,26 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     override def limit = 3
 
-    throttler.throttle(1).unsafeRunSync()
-    throttler.throttle(1).unsafeRunSync()
-    throttler.throttle(1).unsafeRunSync()
+
+    throttler.throttle(1).replicateA(3).unsafeRunSync()
     assertThrows[RuntimeException] {
       throttler.throttle(1).unsafeRunSync()
     }
+  }
+
+  it should "throttle after changing tick" in new ctx {
+    override def window = 1000
+
+    override def limit = 3
+
+    throttler.throttle(1).replicateA(limit).unsafeRunSync()
+    fakeTimer.add(window)
+    throttler.throttle(1).replicateA(limit).unsafeRunSync()
+    assertThrows[RuntimeException] {
+      throttler.throttle(1).unsafeRunSync()
+    }
+    fakeTimer.add(window)
+    throttler.throttle(1).unsafeRunSync()
 
   }
 }
