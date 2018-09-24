@@ -1,6 +1,7 @@
 package com.wix.ocicat
 
 import java.util.concurrent.TimeUnit
+import cats.ApplicativeError
 import cats.effect.concurrent.Ref
 import cats.effect.{Sync, Timer}
 import cats.implicits._
@@ -23,6 +24,7 @@ object Throttler {
     val windowMillis = config.window.toMillis
 
     for {
+      _ <- validateConfig(config)(implicitly[ApplicativeError[F, Throwable]])
       now <- T.clock.realTime(TimeUnit.MILLISECONDS)
       currentTick = now / windowMillis
       state <- Ref.of((currentTick, Map.empty[A, Int]))
@@ -58,6 +60,25 @@ object Throttler {
 
 
   }
+
+  private def validateConfig[F[_]](config: ThrottleConfig)(implicit AE: ApplicativeError[F, Throwable]): F[Unit] = {
+    val validation = {
+      if (config.limit <= 0) List(s"limit of calls should be greater than 0 but got ${config.limit}") else List()
+    } ++ {
+      if (config.window._1 <= 0) List(s"duration should be greater than 0 but got ${config.window._1}") else List()
+    }
+
+    val validationMessage = validation.foldSmash("throttle config is invalid : ", " and ", "")
+
+    if (validation.isEmpty) {
+      AE.unit
+    } else {
+      AE.raiseError(new InvalidConfigException(validationMessage))
+    }
+  }
+
 }
+
+class InvalidConfigException(msg: String) extends RuntimeException(msg)
 
 class ThrottleException(key: Any, calls: Int, config: ThrottleConfig) extends RuntimeException(s"$key is throttled after $calls calls, config is $config")

@@ -4,10 +4,11 @@ import java.util.concurrent.TimeUnit
 
 import cats.effect
 import cats.effect.{Clock, IO}
-import org.scalatest._
 import cats.implicits._
-import scala.concurrent.duration._
 import com.wix.ocicat.ThrottleConfig._
+import org.scalatest._
+
+import scala.concurrent.duration._
 
 class ThrottlerTest extends FlatSpec with Matchers {
 
@@ -73,6 +74,14 @@ class ThrottlerTest extends FlatSpec with Matchers {
     fakeTimer.add(window)
     throttler.throttle(1).unsafeRunSync()
 
+  }
+
+  it should "fail on throttle construction" in {
+    implicit val cs = new FakeTimer().timer
+
+    assertThrows[InvalidConfigException] {
+      Throttler[IO, Int](-1 every -1.millis).unsafeRunSync()
+    }
   }
 }
 
