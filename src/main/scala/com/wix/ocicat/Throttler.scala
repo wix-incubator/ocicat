@@ -3,8 +3,9 @@ package com.wix.ocicat
 import java.util.concurrent.TimeUnit
 import cats.ApplicativeError
 import cats.effect.concurrent.Ref
-import cats.effect.{Sync, Timer}
+import cats.effect.{Clock, Effect, Sync}
 import cats.implicits._
+
 import scala.language.higherKinds
 
 trait Throttler[F[_], A] {
@@ -19,23 +20,29 @@ object Throttler {
 
   case object NonThrottled extends ThrottleStatus
 
+  def unsafeCreate[F[_], A](config: ThrottlerConfig)(implicit E: Effect[F]): Throttler[F, A] = {
+    E.toIO(apply[F, A](config)(Clock.create, E)).unsafeRunSync()
+  }
 
-  def apply[F[_], A](config: ThrottleConfig)(implicit T: Timer[F], S: Sync[F]): F[Throttler[F, A]] = {
+  def create[F[_], A](config: ThrottlerConfig)(implicit S: Sync[F]): F[Throttler[F, A]] = {
+    apply(config)(Clock.create, S)
+  }
+
+  def apply[F[_], A](config: ThrottlerConfig)(implicit C: Clock[F], S: Sync[F]): F[Throttler[F, A]] = {
     val windowMillis = config.window.toMillis
 
     for {
       _ <- validateConfig(config)(implicitly[ApplicativeError[F, Throwable]])
-      now <- T.clock.realTime(TimeUnit.MILLISECONDS)
+      now <- C.realTime(TimeUnit.MILLISECONDS)
       currentTick = now / windowMillis
       state <- Ref.of((currentTick, Map.empty[A, Int]))
     } yield {
       new Throttler[F, A] {
 
-        override def throttle(key: A) = for {
-          now <- T.clock.realTime(TimeUnit.MILLISECONDS)
+        override def throttle(key: A): F[Unit] = for {
+          now <- C.realTime(TimeUnit.MILLISECONDS)
           currentTick = now / windowMillis
           throttleStatus <- state.modify { case (previousTick, counts) =>
-            // todo validate limit
             if (currentTick > previousTick) {
               ((currentTick, Map(key -> 1)), NonThrottled)
             } else {
@@ -55,13 +62,14 @@ object Throttler {
             case NonThrottled => S.unit
           }
         } yield ()
+
       }
     }
 
-
   }
 
-  private def validateConfig[F[_]](config: ThrottleConfig)(implicit AE: ApplicativeError[F, Throwable]): F[Unit] = {
+
+  private def validateConfig[F[_]](config: ThrottlerConfig)(implicit AE: ApplicativeError[F, Throwable]): F[Unit] = {
     val validation = {
       if (config.limit <= 0) List(s"limit of calls should be greater than 0 but got ${config.limit}") else List()
     } ++ {
@@ -81,4 +89,4 @@ object Throttler {
 
 class InvalidConfigException(msg: String) extends RuntimeException(msg)
 
-class ThrottleException(key: Any, calls: Int, config: ThrottleConfig) extends RuntimeException(s"$key is throttled after $calls calls, config is $config")
+class ThrottleException(key: Any, calls: Int, config: ThrottlerConfig) extends RuntimeException(s"$key is throttled after $calls calls, config is $config")

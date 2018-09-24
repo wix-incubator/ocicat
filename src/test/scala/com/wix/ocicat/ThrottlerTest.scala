@@ -2,10 +2,9 @@ package com.wix.ocicat
 
 import java.util.concurrent.TimeUnit
 
-import cats.effect
 import cats.effect.{Clock, IO}
 import cats.implicits._
-import com.wix.ocicat.ThrottleConfig._
+import com.wix.ocicat.ThrottlerConfig._
 import org.scalatest._
 
 import scala.concurrent.duration._
@@ -17,8 +16,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     def limit: Int
 
-    val fakeTimer = new FakeTimer()
-    implicit val cs = fakeTimer.timer
+    implicit val fakeTimer = new FakeTimer()
     val throttler = Throttler[IO, Int](limit every window.millis).unsafeRunSync()
   }
 
@@ -77,7 +75,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
   }
 
   it should "fail on throttle construction" in {
-    implicit val cs = new FakeTimer().timer
+    implicit val cs = new FakeTimer()
 
     assertThrows[InvalidConfigException] {
       Throttler[IO, Int](-1 every -1.millis).unsafeRunSync()
@@ -85,19 +83,13 @@ class ThrottlerTest extends FlatSpec with Matchers {
   }
 }
 
-class FakeTimer(var time: Long = System.currentTimeMillis()) {
+class FakeTimer(var time: Long = System.currentTimeMillis()) extends Clock[IO] {
 
-  def timer: effect.Timer[IO] = new effect.Timer[IO] {
-    override def clock: Clock[IO] = new Clock[IO] {
-      override def realTime(unit: TimeUnit) = IO {
-        unit.convert(time, TimeUnit.MILLISECONDS)
-      }
-
-      override def monotonic(unit: TimeUnit) = ???
-    }
-
-    override def sleep(duration: FiniteDuration) = ???
+  override def realTime(unit: TimeUnit) = IO {
+    unit.convert(time, TimeUnit.MILLISECONDS)
   }
+
+  override def monotonic(unit: TimeUnit) = ???
 
   def add(delta: Int): Unit = {
     time = time + delta.toLong
