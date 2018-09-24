@@ -54,7 +54,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
 
     throttler.throttle(1).replicateA(3).unsafeRunSync()
-    assertThrows[RuntimeException] {
+    assertThrows[ThrottleException] {
       throttler.throttle(1).unsafeRunSync()
     }
   }
@@ -67,7 +67,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
     throttler.throttle(1).replicateA(limit).unsafeRunSync()
     fakeTimer.add(window)
     throttler.throttle(1).replicateA(limit).unsafeRunSync()
-    assertThrows[RuntimeException] {
+    assertThrows[ThrottleException] {
       throttler.throttle(1).unsafeRunSync()
     }
     fakeTimer.add(window)

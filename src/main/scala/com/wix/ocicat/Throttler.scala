@@ -14,7 +14,7 @@ object Throttler {
 
   sealed trait ThrottleStatus
 
-  case object Throttled extends ThrottleStatus
+  case class Throttled(calls: Int) extends ThrottleStatus
 
   case object NonThrottled extends ThrottleStatus
 
@@ -40,7 +40,7 @@ object Throttler {
               counts.get(key) match {
                 case Some(count) =>
                   if (count + 1 > config.limit) {
-                    ((previousTick, counts + (key -> (count + 1))), Throttled)
+                    ((previousTick, counts + (key -> (count + 1))), Throttled(count + 1))
                   } else {
                     ((previousTick, counts + (key -> (count + 1))), NonThrottled)
                   }
@@ -49,7 +49,7 @@ object Throttler {
             }
           }
           _ <- throttleStatus match {
-            case Throttled => S.raiseError(new RuntimeException(s"key $key is throttled"))
+            case Throttled(calls) => S.raiseError(new ThrottleException(key, calls, config))
             case NonThrottled => S.unit
           }
         } yield ()
@@ -59,3 +59,5 @@ object Throttler {
 
   }
 }
+
+class ThrottleException(key: Any, calls: Int, config: ThrottleConfig) extends RuntimeException(s"$key is throttled after $calls calls, config is $config")
