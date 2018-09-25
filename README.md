@@ -21,7 +21,7 @@ val config = 5 every 1.minute
 - create a throttler for any container that has cats.effect.Sync instance, e.g. cats.effect.IO.
 String is a type of Key we are going throttle on.
 ```scala
-val throttler = Throttler[IO, String](limit every window.millis, fakeClock).unsafeRunSync()
+val throttler = Throttler[IO, String](limit every window.millis, Clock.create).unsafeRunSync()
 ```
 
 - submit a key to the throttle on action you want to be throttled
