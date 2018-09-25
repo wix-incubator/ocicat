@@ -1,12 +1,43 @@
 import Dependencies._
 
+lazy val publishSettings = Seq(
+  publishTo := {
+    val nexus = "https://oss.sonatype.org/"
+    if ( version.value.trim.endsWith( "SNAPSHOT" ) )
+      Some( "snapshots" at nexus + "content/repositories/snapshots" )
+    else
+      Some( "releases" at nexus + "service/local/staging/deploy/maven2" )
+  },
+  publishMavenStyle := true,
+  pomExtra in ThisBuild :=
+    <scm>
+      <url>git@github.com:wix/ocicat.git</url>
+      <connection>scm:git:git@github.com:wix/ocicat.git</connection>
+    </scm>
+      <developers>
+        <developer>
+          <id>yaroslavh</id>
+          <name>Yaroslav Hryniuk</name>
+          <email>yaroslavh@wix.com</email>
+          <organization>Wix</organization>
+        </developer>
+        <developer>
+          <id>valentynv</id>
+          <name>Valentyn Vakatsiienko</name>
+          <email>valentynv@wix.com</email>
+          <organization>Wix</organization>
+        </developer>
+      </developers>
+)
+
 lazy val root = (project in file(".")).
   settings(
     inThisBuild(List(
-      organization := "com.example",
+      organization := "com.wix",
       scalaVersion := "2.12.6",
       version := "0.1.0-SNAPSHOT"
     )),
+    publishSettings,
     name := "ocicat",
     libraryDependencies ++= Seq(scalaTest % Test, catsEffect),
     scalacOptions ++= Seq(
