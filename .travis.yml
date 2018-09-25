@@ -1,31 +1,19 @@
 language: scala
-
 scala:
 - 2.11.12
 - 2.12.6
-#  - 2.13-M2
-
 sudo: false
-
 script:
 - sbt "++$TRAVIS_SCALA_VERSION clean" "++$TRAVIS_SCALA_VERSION test"
-
 after_success:
-# Snapshot publishing via Travis courtesy of Jan Machacek, thanks!
-# http://www.cakesolutions.net/teamblogs/publishing-artefacts-to-oss-sonatype-nexus-using-sbt-and-travis-ci
 - '[[ $TRAVIS_BRANCH == "master" ]] && { sbt "++$TRAVIS_SCALA_VERSION publish"; };'
-
 jdk:
 - oraclejdk8
-
-# Cache bootstrap and dependency files for (hopefully) faster builds, per recommendation in
-# http://www.scala-sbt.org/0.13/docs/Travis-CI-with-sbt.html
 cache:
   directories:
   - "$HOME/.ivy2/cache"
   - "$HOME/.sbt/boot/"
   - "$HOME/.sbt/launchers/"
-
 before_cache:
 - find $HOME/.sbt -name "*.lock" | xargs rm
 - find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
