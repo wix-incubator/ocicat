@@ -1,6 +1,5 @@
 package com.wix.ocicat
 
-import cats.{MonadError, effect}
 import cats.effect.Concurrent
 import cats.effect.concurrent.{Ref, Semaphore}
 import cats.implicits._
@@ -22,7 +21,7 @@ object Queue {
     for {
       upperBound <- Semaphore(0)
       lowerBound <- Semaphore(bound)
-      queueRef <- Ref.of(new immutable.Queue[A]())
+      queueRef <- Ref.of(immutable.Queue.empty[A])
     } yield new Queue[F, A] {
 
       override def enqueue(a: A): F[Unit] = for {
