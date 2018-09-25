@@ -16,8 +16,8 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     def limit: Int
 
-    implicit val fakeTimer = new FakeTimer()
-    val throttler = Throttler[IO, Int](limit every window.millis).unsafeRunSync()
+    val fakeClock = new FakeTimer()
+    val throttler = Throttler[IO, Int](limit every window.millis, fakeClock).unsafeRunSync()
   }
 
   "Throttler" should "not throttle" in new ctx {
@@ -27,7 +27,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     throttler.throttle(1).replicateA(limit).unsafeRunSync()
 
-    fakeTimer.add(window)
+    fakeClock.add(window)
 
     throttler.throttle(1).replicateA(limit).unsafeRunSync()
 
@@ -38,11 +38,11 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     override def limit = 3
 
-    fakeTimer.time = (fakeTimer.time / 1000) * 1000 + 999
+    fakeClock.time = (fakeClock.time / 1000) * 1000 + 999
 
     throttler.throttle(1).replicateA(limit).unsafeRunSync()
 
-    fakeTimer.time = fakeTimer.time + 500
+    fakeClock.time = fakeClock.time + 500
     throttler.throttle(1).unsafeRunSync()
 
   }
@@ -64,21 +64,21 @@ class ThrottlerTest extends FlatSpec with Matchers {
     override def limit = 3
 
     throttler.throttle(1).replicateA(limit).unsafeRunSync()
-    fakeTimer.add(window)
+    fakeClock.add(window)
     throttler.throttle(1).replicateA(limit).unsafeRunSync()
     assertThrows[ThrottleException] {
       throttler.throttle(1).unsafeRunSync()
     }
-    fakeTimer.add(window)
+    fakeClock.add(window)
     throttler.throttle(1).unsafeRunSync()
 
   }
 
   it should "fail on throttle construction" in {
-    implicit val cs = new FakeTimer()
+    val fakeClock = new FakeTimer()
 
     assertThrows[InvalidConfigException] {
-      Throttler[IO, Int](-1 every -1.millis).unsafeRunSync()
+      Throttler[IO, Int](-1 every -1.millis, fakeClock).unsafeRunSync()
     }
   }
 }

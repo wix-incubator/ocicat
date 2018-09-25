@@ -21,26 +21,26 @@ object Throttler {
   case object NonThrottled extends ThrottleStatus
 
   def unsafeCreate[F[_], A](config: ThrottlerConfig)(implicit E: Effect[F]): Throttler[F, A] = {
-    E.toIO(apply[F, A](config)(Clock.create, E)).unsafeRunSync()
+    E.toIO(apply[F, A](config, Clock.create)(E)).unsafeRunSync()
   }
 
   def create[F[_], A](config: ThrottlerConfig)(implicit S: Sync[F]): F[Throttler[F, A]] = {
-    apply(config)(Clock.create, S)
+    apply(config, Clock.create)(S)
   }
 
-  def apply[F[_], A](config: ThrottlerConfig)(implicit C: Clock[F], S: Sync[F]): F[Throttler[F, A]] = {
+  def apply[F[_], A](config: ThrottlerConfig, clock: Clock[F])(implicit S: Sync[F]): F[Throttler[F, A]] = {
     val windowMillis = config.window.toMillis
 
     for {
       _ <- validateConfig(config)(implicitly[ApplicativeError[F, Throwable]])
-      now <- C.realTime(TimeUnit.MILLISECONDS)
+      now <- clock.realTime(TimeUnit.MILLISECONDS)
       currentTick = now / windowMillis
       state <- Ref.of((currentTick, Map.empty[A, Int]))
     } yield {
       new Throttler[F, A] {
 
         override def throttle(key: A): F[Unit] = for {
-          now <- C.realTime(TimeUnit.MILLISECONDS)
+          now <- clock.realTime(TimeUnit.MILLISECONDS)
           currentTick = now / windowMillis
           throttleStatus <- state.modify { case (previousTick, counts) =>
             if (currentTick > previousTick) {
