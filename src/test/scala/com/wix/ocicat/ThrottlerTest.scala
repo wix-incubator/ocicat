@@ -6,8 +6,9 @@ import cats.effect.{Clock, IO}
 import cats.implicits._
 import com.wix.ocicat.ThrottlerConfig._
 import org.scalatest._
-
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class ThrottlerTest extends FlatSpec with Matchers {
 
@@ -80,6 +81,28 @@ class ThrottlerTest extends FlatSpec with Matchers {
     assertThrows[InvalidConfigException] {
       Throttler[IO, Int](-1 every -1.millis, fakeClock).unsafeRunSync()
     }
+  }
+
+  "Throttler with scala.concurrent.Future" should "throttle" in {
+    import scala.concurrent.duration._
+    import scala.concurrent.ExecutionContext.Implicits.global
+
+    def futureThrottler[A](config: ThrottlerConfig) = {
+      new Throttler[Future, A] {
+        val throttler0 = Throttler.unsafeCreate[IO, A](config)
+        override def throttle(key: A) = throttler0.throttle(key).unsafeToFuture()
+      }
+    }
+
+    val key = "key1"
+    val throttler = futureThrottler[String](5 every 100.seconds)
+
+    Await.result(Future.sequence(Seq.fill(5)(throttler.throttle(key))), 1 minute)
+
+    assertThrows[ThrottleException] {
+      Await.result(throttler.throttle(key), 1 minute)
+    }
+
   }
 }
 

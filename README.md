@@ -37,10 +37,20 @@ throttler.throttle(key).unsafeRunSync() // going to throw ThrottleException beca
 ```
 
 
+- in case you are working with future, use this snippet for the throttler creation
+```scala
+    def futureThrottler[A](config: ThrottlerConfig) = {
+      new Throttler[Future, A] {
+        val throttler0 = Throttler.unsafeCreate[IO, A](config)
+        override def throttle(key: A) = throttler0.throttle(key).unsafeToFuture()
+      }
+    }
+```
+
 ## Running the tests
 
 ```scala
-sbt tests
+sbt test
 ```
 
 
