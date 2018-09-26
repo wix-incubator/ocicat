@@ -20,19 +20,19 @@ object Throttler {
 
   case object NonThrottled extends ThrottleStatus
 
-  def unsafeCreate[F[_], A](config: ThrottlerConfig)(implicit E: Effect[F]): Throttler[F, A] = {
+  def unsafeCreate[F[_], A](config: Rate)(implicit E: Effect[F]): Throttler[F, A] = {
     E.toIO(apply[F, A](config, Clock.create)(E)).unsafeRunSync()
   }
 
-  def create[F[_], A](config: ThrottlerConfig)(implicit S: Sync[F]): F[Throttler[F, A]] = {
+  def create[F[_], A](config: Rate)(implicit S: Sync[F]): F[Throttler[F, A]] = {
     apply(config, Clock.create)(S)
   }
 
-  def apply[F[_], A](config: ThrottlerConfig, clock: Clock[F])(implicit S: Sync[F]): F[Throttler[F, A]] = {
+  def apply[F[_], A](config: Rate, clock: Clock[F])(implicit S: Sync[F]): F[Throttler[F, A]] = {
     val windowMillis = config.window.toMillis
 
     for {
-      _ <- validateConfig(config)(implicitly[ApplicativeError[F, Throwable]])
+      _ <- validateRate(config)(implicitly[ApplicativeError[F, Throwable]])
       now <- clock.realTime(TimeUnit.MILLISECONDS)
       currentTick = now / windowMillis
       state <- Ref.of((currentTick, Map.empty[A, Int]))
@@ -69,11 +69,11 @@ object Throttler {
   }
 
 
-  private def validateConfig[F[_]](config: ThrottlerConfig)(implicit AE: ApplicativeError[F, Throwable]): F[Unit] = {
+  private def validateRate[F[_]](r: Rate)(implicit AE: ApplicativeError[F, Throwable]): F[Unit] = {
     val validation = {
-      if (config.limit <= 0) List(s"limit of calls should be greater than 0 but got ${config.limit}") else List()
+      if (r.limit <= 0) List(s"limit of calls should be greater than 0 but got ${r.limit}") else List()
     } ++ {
-      if (config.window._1 <= 0) List(s"duration should be greater than 0 but got ${config.window._1}") else List()
+      if (r.window._1 <= 0) List(s"duration should be greater than 0 but got ${r.window._1}") else List()
     }
 
     val validationMessage = validation.foldSmash("throttle config is invalid : ", " and ", "")
@@ -81,12 +81,12 @@ object Throttler {
     if (validation.isEmpty) {
       AE.unit
     } else {
-      AE.raiseError(new InvalidConfigException(validationMessage))
+      AE.raiseError(new InvalidRateException(validationMessage))
     }
   }
 
 }
 
-class InvalidConfigException(msg: String) extends RuntimeException(msg)
+class InvalidRateException(msg: String) extends RuntimeException(msg)
 
-class ThrottleException(key: Any, calls: Int, config: ThrottlerConfig) extends RuntimeException(s"$key is throttled after $calls calls, config is $config")
+class ThrottleException(key: Any, calls: Int, config: Rate) extends RuntimeException(s"$key is throttled after $calls calls, config is $config")

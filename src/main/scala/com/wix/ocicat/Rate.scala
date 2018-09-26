@@ -3,17 +3,17 @@ package com.wix.ocicat
 import scala.concurrent.duration.FiniteDuration
 
 
-case class ThrottlerConfig(window: FiniteDuration, limit: Int) {
+case class Rate(window: FiniteDuration, limit: Int) {
   override def toString = {
     s"$limit calls every $window"
   }
 }
 
-object ThrottlerConfig {
+object Rate {
 
-  implicit class ThrottleConfigLimitOps(limit: Int) {
+  implicit class RateLimitOps(limit: Int) {
     def every(window: FiniteDuration) = {
-      ThrottlerConfig(window, limit)
+      Rate(window, limit)
     }
   }
 

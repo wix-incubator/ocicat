@@ -1,10 +1,9 @@
 package com.wix.ocicat
 
-import java.util.concurrent.TimeUnit
 
-import cats.effect.{Clock, IO}
+import cats.effect.IO
 import cats.implicits._
-import com.wix.ocicat.ThrottlerConfig._
+import com.wix.ocicat.Rate._
 import org.scalatest._
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
@@ -17,7 +16,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     def limit: Int
 
-    val fakeClock = new FakeTimer()
+    val fakeClock = new FakeClock()
     val throttler = Throttler[IO, Int](limit every window.millis, fakeClock).unsafeRunSync()
   }
 
@@ -76,9 +75,9 @@ class ThrottlerTest extends FlatSpec with Matchers {
   }
 
   it should "fail on throttle construction" in {
-    val fakeClock = new FakeTimer()
+    val fakeClock = new FakeClock()
 
-    assertThrows[InvalidConfigException] {
+    assertThrows[InvalidRateException] {
       Throttler[IO, Int](-1 every -1.millis, fakeClock).unsafeRunSync()
     }
   }
@@ -87,7 +86,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
     import scala.concurrent.duration._
     import scala.concurrent.ExecutionContext.Implicits.global
 
-    def futureThrottler[A](config: ThrottlerConfig) = {
+    def futureThrottler[A](config: Rate) = {
       new Throttler[Future, A] {
         val throttler0 = Throttler.unsafeCreate[IO, A](config)
         override def throttle(key: A) = throttler0.throttle(key).unsafeToFuture()
@@ -103,18 +102,5 @@ class ThrottlerTest extends FlatSpec with Matchers {
       Await.result(throttler.throttle(key), 1 minute)
     }
 
-  }
-}
-
-class FakeTimer(var time: Long = System.currentTimeMillis()) extends Clock[IO] {
-
-  override def realTime(unit: TimeUnit) = IO {
-    unit.convert(time, TimeUnit.MILLISECONDS)
-  }
-
-  override def monotonic(unit: TimeUnit) = ???
-
-  def add(delta: Int): Unit = {
-    time = time + delta.toLong
   }
 }
