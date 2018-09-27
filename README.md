@@ -10,12 +10,14 @@ libraryDependencies += "com.wix" %% "ocicat" % "0.0.1"
 
 ## Getting Started
 
+### Throttler
+
 - decide about throttling rate. For example up to 5 calls in one minute.
 ```scala
 import scala.concurrent.duration._
-import com.wix.ocicat.ThrottlerConfig._
+import com.wix.ocicat.Rate._
 
-val config = 5 every 1.minute
+val rate = 5 every 1.minute
 ```
 
 - create a throttler for any container that has cats.effect.Sync instance, e.g. cats.effect.IO.
@@ -37,7 +39,7 @@ throttler.throttle(key).unsafeRunSync() // going to throw ThrottleException beca
 ```
 
 
-- in case you are working with future, use this snippet for the throttler creation
+- in case you are working with future (sic!), use this snippet for the throttler creation
 ```scala
     def futureThrottler[A](config: ThrottlerConfig) = {
       new Throttler[Future, A] {
@@ -46,6 +48,8 @@ throttler.throttle(key).unsafeRunSync() // going to throw ThrottleException beca
       }
     }
 ```
+
+### Rate limiter
 
 ## Running the tests
 

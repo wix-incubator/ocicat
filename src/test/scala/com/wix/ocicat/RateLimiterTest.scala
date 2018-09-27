@@ -5,9 +5,9 @@ import java.util.concurrent.TimeoutException
 import cats.effect.IO
 import cats.effect.concurrent.Deferred
 import cats.effect.internals.IOContextShift
-import cats.implicits._
 import com.wix.ocicat.Rate._
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
+
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -48,11 +48,23 @@ class RateLimiterTest extends FlatSpec with Matchers with EitherValues {
       res2Throttled <- p2.get.timeout(20 millis)(IO.timer(ec), cs).attempt
       _ = fakeClock.add(2)
       res2 <- p2.get
-      _ = fakeClock.add(20)
     } yield (res1, res2Throttled, res2)).unsafeRunSync()
 
     res1 shouldEqual 1
     res2Throttled.left.value shouldBe a[TimeoutException]
     res2 shouldEqual 2
+  }
+
+  it should "drop jobs if the queue is full" in new ctx {
+    val (one, two, three) = (for {
+      limiter <- makeLimiter(1 every 1000.millis, 1)
+      one <- limiter.await(IO(1))
+      two <- limiter.submit(IO(2)).attempt
+      three <- limiter.submit(IO(3)).attempt
+    } yield (one, two, three)).unsafeRunSync()
+
+    one shouldEqual 1
+    two should be ('right)
+    three.left.value shouldBe a[CapacityExceededException]
   }
 }
