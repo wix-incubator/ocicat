@@ -5,8 +5,10 @@ import cats.effect.IO
 import cats.implicits._
 import com.wix.ocicat.Rate._
 import org.scalatest._
-import scala.concurrent.{Await, Future}
+
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
 
 class ThrottlerTest extends FlatSpec with Matchers {
@@ -16,6 +18,8 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     def limit: Int
 
+
+    implicit val cs = IO.contextShift(global)
     val fakeClock = new FakeClock()
     val throttler = Throttler[IO, Int](limit every window.millis, fakeClock).unsafeRunSync()
   }
@@ -77,19 +81,22 @@ class ThrottlerTest extends FlatSpec with Matchers {
   it should "fail on throttle construction" in {
     val fakeClock = new FakeClock()
 
+    implicit val cs = IO.contextShift(global)
+
     assertThrows[InvalidRateException] {
       Throttler[IO, Int](-1 every -1.millis, fakeClock).unsafeRunSync()
     }
   }
 
   "Throttler with scala.concurrent.Future" should "throttle" in {
-    import scala.concurrent.duration._
     import scala.concurrent.ExecutionContext.Implicits.global
-
+    import scala.concurrent.duration._
+    implicit val cs = IO.contextShift(global)
     def futureThrottler[A](config: Rate) = {
       new Throttler[Future, A] {
         val throttler0 = Throttler.unsafeCreate[IO, A](config)
         override def throttle(key: A) = throttler0.throttle(key).unsafeToFuture()
+        override def await(key: A) = ???
       }
     }
 
