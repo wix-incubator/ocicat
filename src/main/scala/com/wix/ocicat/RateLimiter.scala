@@ -4,10 +4,7 @@ import cats.effect._
 import cats.effect.concurrent.{Deferred, Ref, Semaphore}
 import cats.implicits._
 import cats.effect.implicits._
-
-import scala.concurrent.duration._
 import scala.collection.immutable
-import scala.language.postfixOps
 
 trait RateLimiter[F[_]] {
   def submit[A](f: F[A]): F[Unit]
@@ -15,18 +12,20 @@ trait RateLimiter[F[_]] {
 }
 
 object RateLimiter {
-  def unsafeCreate[F[_] : Effect : Concurrent](rate: Rate, timer: Timer[F], maxPending: Long): RateLimiter[F] =
-    Effect[F].toIO(apply(rate, timer, maxPending)).unsafeRunSync()
+  def unsafeCreate[F[_] : Effect : Concurrent](rate: Rate, clock: Clock[F], maxPending: Long): RateLimiter[F] =
+    Effect[F].toIO(apply(rate, clock, maxPending)).unsafeRunSync()
 
-  def apply[F[_]: Concurrent](rate: Rate, timer: Timer[F], maxPending: Long): F[RateLimiter[F]] = for {
+  def apply[F[_] : Concurrent](rate: Rate, clock: Clock[F], maxPending: Long): F[RateLimiter[F]] = for {
     q <- Queue[F, F[_]](maxPending)
-    throttler <- Throttler[F, Int](rate, timer.clock)
-    _ <- {(for {
-        _ <- timer.sleep(1 milli)
-        _ <- throttler.throttle(0)
-        a <- q.dequeue
-        _ <- a.start.void
-      } yield {}).attempt.iterateWhile { _ => true }
+    throttler <- Throttler[F, Int](rate, clock)
+    _ <- {
+      {
+        for {
+          _ <- throttler.throttle(0)
+          a <- q.dequeue
+          _ <- a.start.void
+        } yield ()
+      }.attempt.iterateWhile { _ => true }
     }.start
   } yield new RateLimiter[F] {
 
@@ -46,7 +45,7 @@ trait Queue[F[_], A] {
 }
 
 object Queue {
-  def apply[F[_]: Concurrent, A](capacity: Long): F[Queue[F, A]] = {
+  def apply[F[_] : Concurrent, A](capacity: Long): F[Queue[F, A]] = {
     for {
       emptyLock <- Semaphore(0)
       fullLock <- Semaphore(capacity)
@@ -54,7 +53,7 @@ object Queue {
     } yield new Queue[F, A] {
 
       override def enqueue(a: A): F[Unit] = for {
-        _ <- fullLock.tryAcquire ifM (
+        _ <- fullLock.tryAcquire ifM(
           ifTrue = queueRef.update(queue => queue.enqueue(a)) <* emptyLock.release,
           ifFalse = Concurrent[F].raiseError[Unit](CapacityExceededException()))
       } yield {}
