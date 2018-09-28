@@ -43,9 +43,9 @@ throttler.throttle(key).unsafeRunSync() // going to throw ThrottleException beca
 
 - in case you are working with future (sic!), use this snippet for the throttler creation
 ```scala
-    def futureThrottler[A](config: ThrottlerConfig) = {
+    def futureThrottler[A](rate: Rate) = {
       new Throttler[Future, A] {
-        val throttler0 = Throttler.unsafeCreate[IO, A](config)
+        val throttler0 = Throttler.unsafeCreate[IO, A](rate)
         override def throttle(key: A) = throttler0.throttle(key).unsafeToFuture()
       }
     }
