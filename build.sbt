@@ -38,7 +38,9 @@ lazy val root = (project in file(".")).
       version := "0.1.0-SNAPSHOT"
     )),
     publishSettings,
+    parallelExecution := false,
     name := "ocicat",
+    logLevel := Level.Debug,
     libraryDependencies ++= Seq(scalaTest % Test, catsEffect),
     scalacOptions ++= Seq(
       "-deprecation",                      // Emit warning and location for usages of deprecated APIs.
