@@ -69,15 +69,45 @@ val maxPending = Long.MaxValue
 val rateLimiter = RateLimiter[IO](rate, maxPending, Clock.create).unsafeRunSync()
 ```
 
-- you can either submit jobs to be executed asynchronously or await job execution
+- you can either submit tasks to be executed asynchronously or await task execution
 ```scala
-val job = IO("This is a job for a rate limiter!")
+val task = IO("This is a task for a rate limiter!")
 
-val submitResult: IO[Unit] = rateLimiter.submit(job)
-val jobResult: IO[String] = rateLimiter.await(job)
+val submitResult: IO[Unit] = rateLimiter.submit(task)
+val taskResult: IO[String] = rateLimiter.await(task)
 ```
 
-- rate limiter will immediately fail job with **TooManyPendingTasksException** if maximum amount of pending jobs is reached
+- rate limiter will immediately fail task with **TooManyPendingTasksException** if maximum amount of pending tasks is reached
+
+### Circuit breaker
+
+Circuit breaker allows you to prevent failures from constantly occurring during temporary system issues.
+
+- pick **maxFailures** (amount of errors after which circuit breaker will immediately fail tasks) and **resetTimeout** (amount of time after which circuit breaker will allow one task to go through to test the system)
+```scala
+import scala.concurrent.duration._
+
+val maxFailures = 1
+val resetTimeout = 1.minute
+```
+
+- create a circuit breaker for any container that has cats.effect.Sync instance, e.g. cats.effect.IO.
+```scala
+val circuitBreaker = CircuitBreaker[IO](maxFailures, resetTimeout, Clock.create).unsafeRunSync()
+```
+
+- circuit breaker will start to protect tasks after **maxFailures** amount of failures
+```scala
+val failingTask = IO.raiseError(new RuntimeException("Something went terribly wrong"))
+val succeedingTask = IO.pure("I'm a happy ???")
+
+circuitBreaker.protect(failingTask).attempt.unsafeRunSync()//Left(RuntimeException("Something went terribly wrong")
+circuitBreaker.protect(succeedingTask).attempt.unsafeRunSync()//Left(RejectedException)
+Thread.sleep(1000*60)
+circuitBreaker.protect(succeedingTask).attempt.unsafeRunSync()//Right("I'm a happy ???")
+```
+
+- rate limiter will immediately fail task with **TooManyPendingTasksException** if maximum amount of pending tasks is reached
 
 ## Running the tests
 
@@ -102,7 +132,7 @@ See also the list of [contributors](https://github.com/wix-incubator/ocicat/grap
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the MIT License - see the [LICENSE.md](https://github.com/wix-incubator/ocicat/blob/master/LICENSE.md) file for details
 
 ## Acknowledgments
 
