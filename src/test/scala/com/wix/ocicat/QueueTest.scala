@@ -34,10 +34,10 @@ class QueueTest extends FlatSpec with Matchers {
       _ <- q.enqueue(2)
     } yield {}).attempt.unsafeRunSync()
 
-    res shouldEqual Left(CapacityExceededException())
+    res shouldEqual Left(TooManyPendingTasksException(1))
   }
 
-  it should "semantically block on attempt to dequeue from an empty queue" in new ctx {
+  it should "block on attempt to dequeue from an empty queue" in new ctx {
     val q = Queue[IO, Int](1).unsafeRunSync()
 
     val enqueue = for {

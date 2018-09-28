@@ -12,15 +12,16 @@ trait RateLimiter[F[_]] {
 }
 
 object RateLimiter {
-  def unsafeCreate[F[_] : Effect : Concurrent](rate: Rate, clock: Clock[F], maxPending: Long): RateLimiter[F] =
-    Effect[F].toIO(apply(rate, clock, maxPending)).unsafeRunSync()
+  def unsafeCreate[F[_] : Effect : Concurrent](rate: Rate, maxPending: Long, clock: Clock[F]): RateLimiter[F] =
+    Effect[F].toIO(apply(rate, maxPending, clock)).unsafeRunSync()
 
-  def apply[F[_] : Concurrent](rate: Rate, clock: Clock[F], maxPending: Long): F[RateLimiter[F]] = for {
+  def apply[F[_] : Concurrent](rate: Rate, maxPending: Long, clock: Clock[F]): F[RateLimiter[F]] = for {
     q <- Queue[F, F[_]](maxPending)
     throttler <- Throttler[F, Int](rate, clock)
     _ <- {
       {
         for {
+          _ <- q.await
           _ <- throttler.throttle(0)
           a <- q.dequeue
           _ <- a.start.void
@@ -42,9 +43,11 @@ trait Queue[F[_], A] {
   def enqueue(a: A): F[Unit]
 
   def dequeue: F[A]
+
+  def await: F[Unit]
 }
 
-object Queue {
+private [ocicat] object Queue {
   def apply[F[_] : Concurrent, A](capacity: Long): F[Queue[F, A]] = {
     for {
       emptyLock <- Semaphore(0)
@@ -55,7 +58,7 @@ object Queue {
       override def enqueue(a: A): F[Unit] = for {
         _ <- fullLock.tryAcquire ifM(
           ifTrue = queueRef.update(queue => queue.enqueue(a)) <* emptyLock.release,
-          ifFalse = Concurrent[F].raiseError[Unit](CapacityExceededException()))
+          ifFalse = Concurrent[F].raiseError[Unit](TooManyPendingTasksException(capacity)))
       } yield {}
 
       override def dequeue: F[A] = {
@@ -66,8 +69,10 @@ object Queue {
 
         emptyLock.acquire *> dequeAndRelease
       }
+
+      override def await: F[Unit] = emptyLock.acquire *> emptyLock.release
     }
   }
 }
 
-case class CapacityExceededException() extends RuntimeException("")
+case class TooManyPendingTasksException(maxPendingTasks: Long) extends RuntimeException(s"There are too many tasks in the queue ($maxPendingTasks)")

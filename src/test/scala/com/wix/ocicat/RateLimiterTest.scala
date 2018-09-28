@@ -18,7 +18,7 @@ class RateLimiterTest extends FlatSpec with Matchers with EitherValues {
     implicit val cs = IOContextShift.global
 
     val fakeClock = new FakeClock()
-    def makeLimiter(rate: Rate, maxPending: Long) = RateLimiter[IO](rate, fakeClock, maxPending)
+    def makeLimiter(rate: Rate, maxPending: Long) = RateLimiter[IO](rate, maxPending, fakeClock)
   }
 
   "RateLimiter" should "run all jobs in the current tick" in new ctx {
@@ -65,6 +65,6 @@ class RateLimiterTest extends FlatSpec with Matchers with EitherValues {
 
     one shouldEqual 1
     two should be ('right)
-    three.left.value shouldBe a[CapacityExceededException]
+    three.left.value shouldBe a[TooManyPendingTasksException]
   }
 }
