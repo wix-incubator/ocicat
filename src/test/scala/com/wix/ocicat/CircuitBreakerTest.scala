@@ -80,9 +80,5 @@ class CircuitBreakerTest extends FlatSpec with Matchers {
     }
   }
 
-  it should "" in new ctx {
-    circuitBreaker.protect(errorTask).attempt.replicateA(maxFailure).unsafeRunSync()
-
-  }
 
 }
