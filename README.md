@@ -1,5 +1,7 @@
 # ocicat
 
+[![Build Status](https://travis-ci.org/wix-incubator/ocicat.svg?branch=master)](https://travis-ci.org/wix-incubator/ocicat)
+
 ocicat is a purely functional [throttler and rate limiter](https://helpx.adobe.com/coldfusion/api-manager/throttling-and-rate-limiting.html)
 
 ## Installing
