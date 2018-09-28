@@ -10,7 +10,9 @@ class FakeClock(var time: Long = System.currentTimeMillis()) extends Clock[IO] {
     unit.convert(time, TimeUnit.MILLISECONDS)
   }
 
-  override def monotonic(unit: TimeUnit) = ???
+  override def monotonic(unit: TimeUnit) = IO {
+    unit.convert(time, TimeUnit.MILLISECONDS)
+  }
 
   def add(delta: Int): Unit = {
     time = time + delta.toLong
