@@ -6,8 +6,6 @@ import cats.effect.IO
 import cats.effect.concurrent.Ref
 import cats.implicits._
 import org.scalatest.{FlatSpec, Matchers}
-
-import scala.language.postfixOps
 import scala.concurrent.duration._
 import cats.implicits._
 import com.wix.ocicat.CircuitBreaker.RejectedException
@@ -21,7 +19,7 @@ class CircuitBreakerTest extends FlatSpec with Matchers {
 
     val maxFailure = 10
     val resetTimeoutMillis = 10 * 1000
-    val circuitBreaker = CircuitBreaker[IO](maxFailure, FiniteDuration(resetTimeoutMillis, TimeUnit.MILLISECONDS), fakeClock).unsafeRunSync()
+    val circuitBreaker = CircuitBreaker[IO](maxFailure, FiniteDuration(resetTimeoutMillis.toLong, TimeUnit.MILLISECONDS), fakeClock).unsafeRunSync()
 
     val notRejected: Either[Throwable, _] => Boolean = {
       case Left(_: RejectedException) => false
