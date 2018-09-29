@@ -5,9 +5,7 @@ import cats.effect.IO
 import cats.implicits._
 import com.wix.ocicat.Rate._
 import org.scalatest._
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
-import scala.language.postfixOps
 
 class ThrottlerTest extends FlatSpec with Matchers {
 
