@@ -82,25 +82,26 @@ class ThrottlerTest extends FlatSpec with Matchers {
     }
   }
 
-  "Throttler with scala.concurrent.Future" should "throttle" in {
-    import scala.concurrent.duration._
-    import scala.concurrent.ExecutionContext.Implicits.global
-
-    def futureThrottler[A](config: Rate) = {
-      new Throttler[Future, A] {
-        val throttler0 = Throttler.unsafeCreate[IO, A](config)
-        override def throttle(key: A) = throttler0.throttle(key).unsafeToFuture()
-      }
-    }
-
-    val key = "key1"
-    val throttler = futureThrottler[String](5 every 100.seconds)
-
-    Await.result(Future.sequence(Seq.fill(5)(throttler.throttle(key))), 1 minute)
-
-    assertThrows[ThrottleException] {
-      Await.result(throttler.throttle(key), 1 minute)
-    }
-
-  }
+//  "Throttler with scala.concurrent.Future" should "throttle" in {
+//    assume(false)
+//    import scala.concurrent.duration._
+//    import scala.concurrent.ExecutionContext.Implicits.global
+//
+//    def futureThrottler[A](config: Rate) = {
+//      new Throttler[Future, A] {
+//        val throttler0 = Throttler.unsafeCreate[IO, A](config)
+//        override def throttle(key: A) = throttler0.throttle(key).unsafeToFuture()
+//      }
+//    }
+//
+//    val key = "key1"
+//    val throttler = futureThrottler[String](5 every 100.seconds)
+//
+//    Await.result(Future.sequence(Seq.fill(5)(throttler.throttle(key))), 1 minute)
+//
+//    assertThrows[ThrottleException] {
+//      Await.result(throttler.throttle(key), 1 minute)
+//    }
+//
+//  }
 }
