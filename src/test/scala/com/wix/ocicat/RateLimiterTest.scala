@@ -18,7 +18,7 @@ class RateLimiterTest extends FlatSpec with Matchers with EitherValues {
     implicit val cs = IOContextShift.global
 
     val fakeClock = new FakeClock()
-    def makeLimiter(rate: Rate, maxPending: Long) = RateLimiter[IO](rate, maxPending, fakeClock)
+    def makeLimiter(rate: Rate, maxPending: Long) = RateLimiter[IO](rate, maxPending, fakeClock, cs)
   }
 
   "RateLimiter" should "run all jobs in the current tick" in new ctx {
@@ -26,6 +26,7 @@ class RateLimiterTest extends FlatSpec with Matchers with EitherValues {
       limiter <- makeLimiter(100 every 1000.millis, 2)
       one <- limiter.await(IO(1))
       two <- limiter.await(IO(2))
+      _ <- limiter.stop
     } yield (one, two)).unsafeRunSync()
 
     one shouldEqual 1
@@ -48,6 +49,8 @@ class RateLimiterTest extends FlatSpec with Matchers with EitherValues {
       res2Throttled <- p2.get.timeout(20 millis)(IO.timer(ec), cs).attempt
       _ = fakeClock.add(2)
       res2 <- p2.get
+
+      _ <- limiter.stop
     } yield (res1, res2Throttled, res2)).unsafeRunSync()
 
     res1 shouldEqual 1
@@ -61,6 +64,7 @@ class RateLimiterTest extends FlatSpec with Matchers with EitherValues {
       one <- limiter.await(IO(1))
       two <- limiter.submit(IO(2)).attempt
       three <- limiter.submit(IO(3)).attempt
+      _ <- limiter.stop
     } yield (one, two, three)).unsafeRunSync()
 
     one shouldEqual 1

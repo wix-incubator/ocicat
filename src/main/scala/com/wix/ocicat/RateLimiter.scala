@@ -9,25 +9,18 @@ import scala.collection.immutable
 trait RateLimiter[F[_]] {
   def submit[A](f: F[A]): F[Unit]
   def await[A](f: F[A]): F[A]
+  def stop: F[Unit]
 }
 
 object RateLimiter {
-  def unsafeCreate[F[_] : Effect : Concurrent](rate: Rate, maxPending: Long, clock: Clock[F]): RateLimiter[F] =
-    Effect[F].toIO(apply(rate, maxPending, clock)).unsafeRunSync()
+  def unsafeCreate[F[_] : Effect : Concurrent](rate: Rate, maxPending: Long, clock: Clock[F], cs: ContextShift[F]): RateLimiter[F] =
+    Effect[F].toIO(apply(rate, maxPending, clock, cs)).unsafeRunSync()
 
-  def apply[F[_] : Concurrent](rate: Rate, maxPending: Long, clock: Clock[F]): F[RateLimiter[F]] = for {
+  def apply[F[_] : Concurrent](rate: Rate, maxPending: Long, clock: Clock[F], cs: ContextShift[F]): F[RateLimiter[F]] = for {
     q <- Queue[F, F[_]](maxPending)
     throttler <- Throttler[F, Int](rate, clock)
-    _ <- {
-      {
-        for {
-          _ <- q.await
-          _ <- throttler.throttle(0)
-          a <- q.dequeue
-          _ <- a.start.void
-        } yield ()
-      }.attempt.iterateWhile { _ => true }
-    }.start
+    state <- Ref.of(true)
+    _ <- runLoop[F](q, throttler, state, cs).start
   } yield new RateLimiter[F] {
 
     override def submit[A](f: F[A]): F[Unit] = q.enqueue(f)
@@ -36,7 +29,24 @@ object RateLimiter {
       p <- Deferred[F, Either[Throwable, A]]
       a <- q.enqueue(f.attempt.flatTap(p.complete)) *> p.get.rethrow
     } yield a
+
+    override def stop: F[Unit] = state.update(_ => false)
   }
+
+  private def runLoop[F[_]: Concurrent](q: Queue[F, F[_]], throttler: Throttler[F, Int], state: Ref[F, Boolean], cs: ContextShift[F]) = (for {
+    _ <- q.await
+    continue <- state.get
+    _ <- throttler.throttle(0).adaptError { case _ => TaskThrottled(continue) }
+    a <- q.dequeue
+    _ <- cs.shift
+    _ <- a.start.void
+  } yield continue).attempt.iterateWhile {
+    case Left(TaskThrottled(continue)) => continue
+    case Right(continue) => continue
+    case _ => false
+  }
+
+  private case class TaskThrottled(continue: Boolean) extends RuntimeException(s"Task throttled, should continue: $continue")
 }
 
 trait Queue[F[_], A] {
