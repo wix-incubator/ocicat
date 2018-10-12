@@ -19,7 +19,7 @@ lazy val publishSettings = Seq(
       "Yaroslav Hryniuk",
       "yaroslavh.hryniuk@gmail.com",
       url("https://github.com/yarhrn")),
-    Developer("Yaroslav Hryniuk",
+    Developer("Valentyn Vakatsiienko",
       "Valentyn Vakatsiienko",
       "valentynv@wix.com",
       url("https://github.com/valentynv"))),
