@@ -1,7 +1,9 @@
 package com.wix.ocicat
 
 import java.util.concurrent.TimeUnit
-import cats.ApplicativeError
+
+import cats.arrow.FunctionK
+import cats.{ApplicativeError, ~>}
 import cats.effect.concurrent.Ref
 import cats.effect.{Clock, Effect, Sync}
 import cats.implicits._
@@ -29,20 +31,24 @@ object Throttler {
   }
 
   def apply[F[_], A](config: Rate, clock: Clock[F])(implicit S: Sync[F]): F[Throttler[F, A]] = {
+    apply0[F, F, A](config, clock, FunctionK.id)
+  }
+
+  def apply0[F[_] : Sync, G[_] : Sync, A](config: Rate, clock: Clock[F], nt: F ~> G): F[Throttler[G, A]] = {
     val windowMillis = config.window.toMillis
+    val G = implicitly[Sync[G]]
 
     for {
       _ <- validateRate(config)(implicitly[ApplicativeError[F, Throwable]])
       now <- clock.realTime(TimeUnit.MILLISECONDS)
       currentTick = now / windowMillis
-      state <- Ref.of((currentTick, Map.empty[A, Int]))
+      state <- Ref.of[F, (Long, Map[A, Int])]((currentTick, Map.empty[A, Int]))
     } yield {
-      new Throttler[F, A] {
-
-        override def throttle(key: A): F[Unit] = for {
-          now <- clock.realTime(TimeUnit.MILLISECONDS)
+      new Throttler[G, A] {
+        override def throttle(key: A): G[Unit] = for {
+          now <- nt(clock.realTime(TimeUnit.MILLISECONDS))
           currentTick = now / windowMillis
-          throttleStatus <- state.modify { case (previousTick, counts) =>
+          throttleStatus <- nt(state.modify { case (previousTick, counts) =>
             if (currentTick > previousTick) {
               ((currentTick, Map(key -> 1)), NonThrottled)
             } else {
@@ -56,16 +62,14 @@ object Throttler {
                 case None => ((previousTick, counts + (key -> 1)), NonThrottled)
               }
             }
-          }
+          })
           _ <- throttleStatus match {
-            case Throttled(calls) => S.raiseError(new ThrottleException(key, calls, config))
-            case NonThrottled => S.unit
+            case Throttled(calls) => G.raiseError(new ThrottleException(key, calls, config))
+            case NonThrottled => G.unit
           }
         } yield ()
-
       }
     }
-
   }
 
 

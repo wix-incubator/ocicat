@@ -2,13 +2,14 @@ package com.wix.ocicat
 
 import java.util.concurrent.TimeUnit
 
-import cats.effect.IO
+import cats.data.{Kleisli, ReaderT}
 import cats.effect.concurrent.Ref
-import cats.implicits._
-import org.scalatest.{FlatSpec, Matchers}
-import scala.concurrent.duration._
+import cats.effect.{Clock, IO}
 import cats.implicits._
 import com.wix.ocicat.CircuitBreaker.RejectedException
+import org.scalatest.{FlatSpec, Matchers}
+
+import scala.concurrent.duration._
 
 class CircuitBreakerTest extends FlatSpec with Matchers {
 
@@ -26,6 +27,7 @@ class CircuitBreakerTest extends FlatSpec with Matchers {
       case _ => true
     }
   }
+
 
   "CircuitBreaker" should "be open if all tasks are successful" in new ctx {
     val counter = Ref.unsafe[IO, Int](0)
@@ -78,6 +80,21 @@ class CircuitBreakerTest extends FlatSpec with Matchers {
     assertThrows[RejectedException] {
       circuitBreaker.protect(IO.unit).unsafeRunSync()
     }
+  }
+
+  it should "be constructed with IO effect but protect ReaderT IO tasks" in {
+    import scala.concurrent.duration._
+    type G[A] = ReaderT[IO, String, A]
+
+    val circuitBreaker = CircuitBreaker.apply0[IO, G](
+      1000,
+      10.seconds,
+      Clock.create[G],
+      ReaderT.liftK[IO, String]
+    ).unsafeRunSync()
+
+
+    circuitBreaker.protect(Kleisli({ test: String => IO(test + "1") })).run("test").unsafeRunSync() should be("test1")
   }
 
 
