@@ -4,9 +4,10 @@ import java.util.concurrent.TimeUnit
 
 import cats.arrow.FunctionK
 import cats.{ApplicativeError, ~>}
-import cats.effect.concurrent.Ref
 import cats.effect.{Clock, Effect, Sync}
 import cats.implicits._
+import com.wix.ocicat.storage.ThrottlerStorage
+import com.wix.ocicat.storage.InMemoryStorage
 
 import scala.language.higherKinds
 
@@ -23,50 +24,31 @@ object Throttler {
   case object NonThrottled extends ThrottleStatus
 
   def unsafeCreate[F[_], A](config: Rate)(implicit E: Effect[F]): Throttler[F, A] = {
-    E.toIO(apply[F, A](config, Clock.create)(E)).unsafeRunSync()
+    E.toIO(apply[F, A](config, InMemoryStorage[F, A](), Clock.create)(E)).unsafeRunSync()
   }
 
   def create[F[_], A](config: Rate)(implicit S: Sync[F]): F[Throttler[F, A]] = {
-    apply(config, Clock.create)(S)
+    apply(config, InMemoryStorage[F, A](), Clock.create)(S)
   }
 
-  def apply[F[_], A](config: Rate, clock: Clock[F])(implicit S: Sync[F]): F[Throttler[F, A]] = {
-    apply0[F, F, A](config, clock, FunctionK.id)
+  def apply[F[_], A](config: Rate, st: ThrottlerStorage[F, A], clock: Clock[F])(implicit S: Sync[F]): F[Throttler[F, A]] = {
+    apply0[F, F, A](config, clock, st, FunctionK.id)
   }
 
-  def apply0[F[_] : Sync, G[_] : Sync, A](config: Rate, clock: Clock[F], nt: F ~> G): F[Throttler[G, A]] = {
-    val windowMillis = config.window.toMillis
+  def apply0[F[_] : Sync, G[_] : Sync, A](config: Rate, clock: Clock[F], st: ThrottlerStorage[F, A], nt: F ~> G): F[Throttler[G, A]] = {
     val G = implicitly[Sync[G]]
-
     for {
       _ <- validateRate(config)(implicitly[ApplicativeError[F, Throwable]])
-      now <- clock.realTime(TimeUnit.MILLISECONDS)
-      currentTick = now / windowMillis
-      state <- Ref.of[F, (Long, Map[A, Int])]((currentTick, Map.empty[A, Int]))
     } yield {
       new Throttler[G, A] {
         override def throttle(key: A): G[Unit] = for {
           now <- nt(clock.realTime(TimeUnit.MILLISECONDS))
-          currentTick = now / windowMillis
-          throttleStatus <- nt(state.modify { case (previousTick, counts) =>
-            if (currentTick > previousTick) {
-              ((currentTick, Map(key -> 1)), NonThrottled)
-            } else {
-              counts.get(key) match {
-                case Some(count) =>
-                  if (count + 1 > config.limit) {
-                    ((previousTick, counts + (key -> (count + 1))), Throttled(count + 1))
-                  } else {
-                    ((previousTick, counts + (key -> (count + 1))), NonThrottled)
-                  }
-                case None => ((previousTick, counts + (key -> 1)), NonThrottled)
-              }
-            }
-          })
+          limitCapacity <- nt(st.incrementAndGet(key, now / config.window.toMillis, now + config.window.toMillis))
+          throttleStatus = if (limitCapacity.counts > config.limit) Throttled(limitCapacity.counts) else NonThrottled
           _ <- throttleStatus match {
-            case Throttled(calls) => G.raiseError(new ThrottleException(key, calls, config))
-            case NonThrottled => G.unit
-          }
+          case Throttled(calls) => G.raiseError(new ThrottleException(key, calls, config))
+          case NonThrottled => G.unit
+        }
         } yield ()
       }
     }
