@@ -20,7 +20,7 @@ object RateLimiter {
 
   def apply[F[_] : Concurrent](rate: Rate, maxPending: Long, clock: Clock[F], cs: ContextShift[F]): F[RateLimiter[F]] = for {
     q <- Queue[F, F[_]](maxPending)
-    throttler <- Throttler[F, Int](rate, InMemoryStorage[F, Int](), clock)
+    throttler <- Throttler[F, Int](rate, InMemoryStorage[F, Int](clock))
     state <- Ref.of(true)
     _ <- runLoop[F](q, throttler, state, cs).start
   } yield new RateLimiter[F] {

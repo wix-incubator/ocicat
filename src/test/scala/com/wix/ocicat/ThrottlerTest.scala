@@ -16,9 +16,9 @@ class ThrottlerTest extends FlatSpec with Matchers {
 
     def limit: Int
 
-    val inMemoryState = InMemoryStorage[IO, Int]()
     val fakeClock = new FakeClock()
-    val throttler = Throttler[IO, Int](limit every window.millis, inMemoryState, fakeClock).unsafeRunSync()
+    val inMemoryStorage = InMemoryStorage[IO, Int](fakeClock)
+    val throttler = Throttler[IO, Int](limit every window.millis, inMemoryStorage).unsafeRunSync()
   }
 
   "Throttler" should "not throttle" in new ctx {
@@ -79,7 +79,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
     val fakeClock = new FakeClock()
 
     assertThrows[InvalidRateException] {
-      Throttler[IO, Int](-1 every -1.millis, InMemoryStorage[IO, Int](), fakeClock).unsafeRunSync()
+      Throttler[IO, Int](-1 every -1.millis, InMemoryStorage[IO, Int](fakeClock)).unsafeRunSync()
     }
   }
 

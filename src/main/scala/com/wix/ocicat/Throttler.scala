@@ -1,7 +1,5 @@
 package com.wix.ocicat
 
-import java.util.concurrent.TimeUnit
-
 import cats.arrow.FunctionK
 import cats.{ApplicativeError, ~>}
 import cats.effect.{Clock, Effect, Sync}
@@ -24,27 +22,26 @@ object Throttler {
   case object NonThrottled extends ThrottleStatus
 
   def unsafeCreate[F[_], A](config: Rate)(implicit E: Effect[F]): Throttler[F, A] = {
-    E.toIO(apply[F, A](config, InMemoryStorage[F, A](), Clock.create)(E)).unsafeRunSync()
+    E.toIO(apply[F, A](config, InMemoryStorage[F, A](Clock.create))(E)).unsafeRunSync()
   }
 
   def create[F[_], A](config: Rate)(implicit S: Sync[F]): F[Throttler[F, A]] = {
-    apply(config, InMemoryStorage[F, A](), Clock.create)(S)
+    apply(config, InMemoryStorage[F, A](Clock.create))(S)
   }
 
-  def apply[F[_], A](config: Rate, st: ThrottlerStorage[F, A], clock: Clock[F])(implicit S: Sync[F]): F[Throttler[F, A]] = {
-    apply0[F, F, A](config, clock, st, FunctionK.id)
+  def apply[F[_], A](config: Rate, st: ThrottlerStorage[F, A])(implicit S: Sync[F]): F[Throttler[F, A]] = {
+    apply0[F, F, A](config, st, FunctionK.id)
   }
 
-  def apply0[F[_] : Sync, G[_] : Sync, A](config: Rate, clock: Clock[F], st: ThrottlerStorage[F, A], nt: F ~> G): F[Throttler[G, A]] = {
+  def apply0[F[_] : Sync, G[_] : Sync, A](config: Rate, st: ThrottlerStorage[F, A], nt: F ~> G): F[Throttler[G, A]] = {
     val G = implicitly[Sync[G]]
     for {
       _ <- validateRate(config)(implicitly[ApplicativeError[F, Throwable]])
     } yield {
       new Throttler[G, A] {
         override def throttle(key: A): G[Unit] = for {
-          now <- nt(clock.realTime(TimeUnit.MILLISECONDS))
-          limitCapacity <- nt(st.incrementAndGet(key, now / config.window.toMillis, now + config.window.toMillis))
-          throttleStatus = if (limitCapacity.counts > config.limit) Throttled(limitCapacity.counts) else NonThrottled
+          capacity <- nt(st.incrementAndGet(key, config))
+          throttleStatus = if (capacity.counts > config.limit) Throttled(capacity.counts) else NonThrottled
           _ <- throttleStatus match {
           case Throttled(calls) => G.raiseError(new ThrottleException(key, calls, config))
           case NonThrottled => G.unit
