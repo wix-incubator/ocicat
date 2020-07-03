@@ -105,5 +105,5 @@ lazy val ocicat_redis = (project in file("ocicat-redis"))
   .settings(
     name := "ocicat-redis",
     commonSettings,
-    libraryDependencies ++= Seq(redis4cats, embeddedRedis, specs2core, specs2junit)
+    libraryDependencies ++= Seq(redis4cats, embeddedRedis)
   ).dependsOn(ocicat_core)

@@ -10,6 +10,4 @@ object Dependencies {
 
   lazy val redis4cats = "dev.profunktor" %% "redis4cats-effects" % "0.10.0"
   lazy val embeddedRedis = "com.github.sebruck" %% "scalatest-embedded-redis" % "0.4.0"
-  lazy val specs2core =  "org.specs2" %% "specs2-core" % "4.10.0" % "test"
-  lazy val specs2junit = "org.specs2" %% "specs2-junit" % "4.10.0" % "test"
 }
