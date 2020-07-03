@@ -100,3 +100,10 @@ lazy val ocicat_jdbc_doobie = (project in file("ocicat-jdbc-doobie"))
     commonSettings,
     libraryDependencies ++= Seq(doobieCore, doobieH2 % Test, doobieTest % Test)
   ).dependsOn(ocicat_core)
+
+lazy val ocicat_redis = (project in file("ocicat-redis"))
+  .settings(
+    name := "ocicat-redis",
+    commonSettings,
+    libraryDependencies ++= Seq(redis4cats, embeddedRedis, specs2core, specs2junit)
+  ).dependsOn(ocicat_core)
