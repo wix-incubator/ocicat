@@ -7,7 +7,7 @@ import cats.implicits._
 import com.wix.ocicat.Rate
 import dev.profunktor.redis4cats.Redis
 import dev.profunktor.redis4cats.algebra.ScriptCommands
-import dev.profunktor.redis4cats.connection.{RedisClient, RedisURI}
+import dev.profunktor.redis4cats.connection.RedisClient
 import dev.profunktor.redis4cats.data.RedisCodec
 import dev.profunktor.redis4cats.effect.Log
 import dev.profunktor.redis4cats.effects.ScriptOutputType
@@ -36,12 +36,12 @@ object RedisStorage {
   def apply[F[_]](redisURI: String, clock: Clock[F])
                     (implicit contextShift: ContextShift[F], concurrent: Concurrent[F], log: Log[F]): RedisStorage[F] = {
 
-    val commandsApi: Resource[F, ScriptCommands[F, String, String]] =
+    val commandsApi: Resource[F, ScriptCommands[F, String, String]] = {
       for {
-        uri    <- Resource.liftF(RedisURI.make[F](redisURI))
-        client <- RedisClient[F](uri)
+        client <- RedisClient[F].from(redisURI)
         redis  <- Redis[F].fromClient(client, RedisCodec.Utf8)
       } yield redis
+    }
 
     new RedisStorage[F](commandsApi, clock: Clock[F])
   }
