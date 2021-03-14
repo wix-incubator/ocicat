@@ -83,6 +83,21 @@ class ThrottlerTest extends FlatSpec with Matchers {
     }
   }
 
+  it should "contramap throttler" in new ctx {
+    override def window = 1000
+
+    override def limit = 3
+
+
+
+    val strThrottler = throttler.contramap[String](_.toInt)
+
+    strThrottler.throttle("1").replicateA(3).unsafeRunSync()
+    assertThrows[ThrottleException] {
+      strThrottler.throttle("1").unsafeRunSync()
+    }
+  }
+
 //  "Throttler with scala.concurrent.Future" should "throttle" in {
 //    assume(false)
 //    import scala.concurrent.duration._

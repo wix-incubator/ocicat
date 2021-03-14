@@ -27,7 +27,7 @@ val rate = 5 every 1.minute
 - create a throttler for any container that has cats.effect.Sync instance, e.g. cats.effect.IO.
 String is a type of Key we are going throttle on.
 ```scala
-val throttler = Throttler[IO, String](limit every window.millis, Clock.create).unsafeRunSync()
+val throttler = Throttler[IO, Int](limit every window.millis,  InMemoryStorage[IO, Int](Clock.create)).unsafeRunSync()
 ```
 
 - submit a key to the throttle on action you want to be throttled
@@ -52,6 +52,14 @@ throttler.throttle(key).unsafeRunSync() // going to throw ThrottleException beca
       }
     }
 ```
+- throttler comes with in memory storage. In memory throttler is good for throttling in scope of one jvm. 
+For distributed cases  there is redis throttler storage implementation. Redis throttler storage is capable to throttle only string keys.  
+```scala
+case class MyKey(key: String)
+val storage: RedisStorage[IO] = RedisStorage[IO](s"redis://localhost:9000", clock)
+val stringThrottler: Throttler[IO, String] = Throttler[IO, String](limit every window.millis,  storage).unsafeRunSync()
+val myKeyThrottler: Throttler[IO, MyKey] = stringThrottler.contramap[MyKey](_.key)
+```   
 
 ### Rate limiter
 
@@ -129,6 +137,8 @@ We use [SemVer](http://semver.org/) for versioning. For the versions available, 
 
 * **Yarosalv Hryniuk** - *Initial work*
 * **Valentyn Vakatsiienko** - *Initial work* 
+* **Dmytro Mayboroda** - *Storage abstraction, Redis Storage*
+* **Serhii Stramnov** - *Storage abstraction, Redis Storage* 
 
 See also the list of [contributors](https://github.com/wix-incubator/ocicat/graphs/contributors) who participated in this project.
 

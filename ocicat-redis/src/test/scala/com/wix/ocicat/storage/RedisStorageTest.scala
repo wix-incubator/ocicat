@@ -61,7 +61,7 @@ class RedisStorageTest extends FlatSpec with Matchers with EmbeddedRedis with Be
     implicit val cs: ContextShift[IO] = IO.contextShift(ec)
 
     private val clock = new FakeClock()
-    val storage: RedisStorage[IO, String] = RedisStorage[IO, String](s"redis://localhost:${redis.ports().get(0)}", clock)
+    val storage: RedisStorage[IO] = RedisStorage[IO](s"redis://localhost:${redis.ports().get(0)}", clock)
 
     val rate: Rate = 3 every 1.minutes
     val key1: String = randomString(5)

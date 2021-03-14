@@ -1,7 +1,7 @@
 package com.wix.ocicat
 
 import cats.arrow.FunctionK
-import cats.{ApplicativeError, ~>}
+import cats.{ApplicativeError, Contravariant, ~>}
 import cats.effect.{Clock, Effect, Sync}
 import cats.implicits._
 import com.wix.ocicat.storage.ThrottlerStorage
@@ -14,6 +14,12 @@ trait Throttler[F[_], A] {
 }
 
 object Throttler {
+
+  implicit def covariantThrottlerInstance[F[_]]: Contravariant[({type G[A] = Throttler[F,A] })#G] = {
+    new Contravariant[({type G[A] = Throttler[F,A] })#G] {
+      override def contramap[A, B](fa: Throttler[F, A])(f: B => A): Throttler[F, B] = (key: B) => fa.throttle(f(key))
+    }
+  }
 
   sealed trait ThrottleStatus
 
