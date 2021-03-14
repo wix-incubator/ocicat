@@ -4,7 +4,9 @@ package com.wix.ocicat
 import cats.effect.IO
 import cats.implicits._
 import com.wix.ocicat.Rate._
+import com.wix.ocicat.storage.InMemoryStorage
 import org.scalatest._
+
 import scala.concurrent.duration._
 
 class ThrottlerTest extends FlatSpec with Matchers {
@@ -15,7 +17,8 @@ class ThrottlerTest extends FlatSpec with Matchers {
     def limit: Int
 
     val fakeClock = new FakeClock()
-    val throttler = Throttler[IO, Int](limit every window.millis, fakeClock).unsafeRunSync()
+    val inMemoryStorage = InMemoryStorage[IO, Int](fakeClock)
+    val throttler = Throttler[IO, Int](limit every window.millis, inMemoryStorage).unsafeRunSync()
   }
 
   "Throttler" should "not throttle" in new ctx {
@@ -76,7 +79,7 @@ class ThrottlerTest extends FlatSpec with Matchers {
     val fakeClock = new FakeClock()
 
     assertThrows[InvalidRateException] {
-      Throttler[IO, Int](-1 every -1.millis, fakeClock).unsafeRunSync()
+      Throttler[IO, Int](-1 every -1.millis, InMemoryStorage[IO, Int](fakeClock)).unsafeRunSync()
     }
   }
 

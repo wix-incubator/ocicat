@@ -1,22 +1,23 @@
 package com.wix.ocicat
 
-import cats.effect.IO
-import cats.effect.internals.IOContextShift
+import cats.effect.{ContextShift, IO, Timer}
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import cats.implicits._
+
+import scala.concurrent.ExecutionContextExecutor
 class QueueTest extends FlatSpec with Matchers {
 
   trait ctx {
-    implicit val ec = scala.concurrent.ExecutionContext.global
-    implicit val cs = IOContextShift.global
-    implicit val timer = IO.timer(ec)
+    implicit val ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
+    implicit val cs: ContextShift[IO] = IO.contextShift(ec)
+    implicit val timer: Timer[IO] = IO.timer(ec)
   }
 
   "Queue" should "be able to enqueue and dequeue elements" in new ctx {
-    val res = (for {
+    private val res = (for {
       q <- Queue[IO, Int](2)
       _ <- q.enqueue(1)
       _ <- q.enqueue(2)
@@ -28,7 +29,7 @@ class QueueTest extends FlatSpec with Matchers {
   }
 
   it should "not allow to exceed its capacity" in new ctx {
-    val res = (for {
+    private val res = (for {
       q <- Queue[IO, Int](1)
       _ <- q.enqueue(1)
       _ <- q.enqueue(2)
@@ -38,14 +39,14 @@ class QueueTest extends FlatSpec with Matchers {
   }
 
   it should "block on attempt to dequeue from an empty queue" in new ctx {
-    val q = Queue[IO, Int](1).unsafeRunSync()
+    private val q = Queue[IO, Int](1).unsafeRunSync()
 
-    val enqueue = for {
+    private val enqueue = for {
       _ <- IO.sleep(100 millis)
       _ <- q.enqueue(1)
     } yield {}
 
-    val elem = (enqueue, q.dequeue).mapN { case (_, e) => e}.unsafeRunSync()
+    private val elem = (enqueue, q.dequeue).mapN { case (_, e) => e}.unsafeRunSync()
     elem shouldEqual 1
   }
 

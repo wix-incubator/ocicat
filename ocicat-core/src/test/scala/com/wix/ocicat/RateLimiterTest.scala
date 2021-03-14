@@ -2,23 +2,23 @@ package com.wix.ocicat
 
 import java.util.concurrent.TimeoutException
 
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.effect.concurrent.Deferred
-import cats.effect.internals.IOContextShift
 import com.wix.ocicat.Rate._
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
 
+import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
 class RateLimiterTest extends FlatSpec with Matchers with EitherValues {
 
   trait ctx {
-    implicit val ec = scala.concurrent.ExecutionContext.global
-    implicit val cs = IOContextShift.global
+    implicit val ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
+    implicit val cs: ContextShift[IO] = IO.contextShift(ec)
 
     val fakeClock = new FakeClock()
-    def makeLimiter(rate: Rate, maxPending: Long) = RateLimiter[IO](rate, maxPending, fakeClock, cs)
+    def makeLimiter(rate: Rate, maxPending: Long): IO[RateLimiter[IO]] = RateLimiter[IO](rate, maxPending, fakeClock, cs)
   }
 
   "RateLimiter" should "run all jobs in the current tick" in new ctx {
